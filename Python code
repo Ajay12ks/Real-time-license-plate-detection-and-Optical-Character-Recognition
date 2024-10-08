@@ -1,0 +1,78 @@
+import cv2
+import numpy as np
+import cvlib as cv
+import pytesseract
+
+# Set the path for Tesseract OCR if needed
+# Uncomment and set your path if Tesseract is not in your system PATH
+# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
+def detect_license_plate(image):
+    # Convert image to grayscale
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    # Use haarcascade for license plate detection
+    plate_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_russian_plate_number.xml')
+    
+    # Detect license plates
+    plates = plate_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+    
+    recognized_characters = []
+    
+    # Draw rectangles around detected plates and extract characters
+    for (x, y, w, h) in plates:
+        cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        
+        # Extract the region of interest (ROI) containing the license plate
+        plate_roi = gray[y:y+h, x:x+w]
+        
+        # Perform OCR on the license plate ROI
+        plate_text = pytesseract.image_to_string(plate_roi, config='--psm 7')
+        recognized_characters.append(plate_text.strip())
+        
+        # Draw the OCR result on the image
+        cv2.putText(image, plate_text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
+    
+    return image, recognized_characters
+
+def main():
+    # Open the built-in camera (usually index 0)
+    cap = cv2.VideoCapture(0)
+
+    # Check if the camera opened successfully
+    if not cap.isOpened():
+        print("Error: Could not open camera.")
+        return
+
+    while True:
+        # Read a frame from the camera
+        ret, frame = cap.read()
+
+        if not ret:
+            print("Error: Failed to read frame from camera.")
+            break
+
+        # Detect license plates and get recognized characters
+        frame_with_boxes, recognized_characters = detect_license_plate(frame)
+
+        # Display the frame with bounding boxes
+        cv2.imshow('License Plate Detection', frame_with_boxes)
+        
+        # Check for Enter key press
+        key = cv2.waitKey(1)
+        if key == 13:  # 13 is the ASCII code for Enter key
+            if recognized_characters:
+                print("Recognized characters:", recognized_characters)
+            else:
+                print("No license plate detected.")
+        
+        # Check for key press 'q' to quit
+        elif key == ord('q'):
+            break
+
+    # Release the camera
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    main()
